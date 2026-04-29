@@ -1,274 +1,277 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+import random
+import string
 import json
 import os
 from datetime import datetime
 
-class TrainingPlanner:
+class PasswordGenerator:
     def __init__(self, root):
         self.root = root
-        self.root.title("Планировщик тренировок")
-        self.root.geometry("900x600")
-        self.root.configure(bg='#f0f0f0')
+        self.root.title("Генератор паролей")
+        self.root.geometry("750x650")
+        self.root.configure(bg='#2c3e50')
         
-        # Хранилище тренировок
-        self.trainings = []
-        self.json_file = "trainings.json"
+        # История паролей
+        self.history = []
+        self.json_file = "passwords_history.json"
         
-        self.load_data()
+        self.load_history()
         self.setup_ui()
     
     def setup_ui(self):
         # Заголовок
-        title = tk.Label(self.root, text="🏋️ Планировщик тренировок", 
-                        font=("Arial", 18, "bold"), bg='#f0f0f0')
-        title.pack(pady=10)
+        title = tk.Label(self.root, text="🔐 Генератор паролей", 
+                        font=("Arial", 20, "bold"), 
+                        bg='#2c3e50', fg='white')
+        title.pack(pady=15)
         
-        # Рамка для добавления тренировки
-        add_frame = tk.LabelFrame(self.root, text="Добавить тренировку", 
-                                  font=("Arial", 12, "bold"), 
-                                  bg='#f0f0f0', padx=20, pady=15)
-        add_frame.pack(pady=10, padx=20, fill='x')
+        # Рамка настроек
+        settings_frame = tk.LabelFrame(self.root, text="Настройки пароля", 
+                                       font=("Arial", 14, "bold"),
+                                       bg='#ecf0f1', fg='#2c3e50', 
+                                       padx=20, pady=15)
+        settings_frame.pack(pady=10, padx=20, fill='x')
         
-        # Дата
-        tk.Label(add_frame, text="Дата (ГГГГ-ММ-ДД):", bg='#f0f0f0', 
-                font=("Arial", 10)).grid(row=0, column=0, padx=5, pady=5, sticky='e')
-        self.date_entry = tk.Entry(add_frame, width=20, font=("Arial", 10))
-        self.date_entry.grid(row=0, column=1, padx=5, pady=5)
-        self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        # Ползунок длины пароля
+        tk.Label(settings_frame, text="Длина пароля:", 
+                bg='#ecf0f1', font=("Arial", 12)).grid(row=0, column=0, padx=10, pady=10, sticky='w')
         
-        # Тип тренировки
-        tk.Label(add_frame, text="Тип тренировки:", bg='#f0f0f0',
-                font=("Arial", 10)).grid(row=0, column=2, padx=5, pady=5, sticky='e')
-        self.type_combo = ttk.Combobox(add_frame, values=["Бег", "Плавание", "Велосипед", 
-                                                          "Силовая", "Йога", "Растяжка"], 
-                                       width=15)
-        self.type_combo.grid(row=0, column=3, padx=5, pady=5)
-        self.type_combo.set("Бег")
+        self.length_var = tk.IntVar(value=12)
+        self.length_slider = tk.Scale(settings_frame, from_=4, to=32, 
+                                      orient='horizontal', variable=self.length_var,
+                                      length=300, showvalue=0)
+        self.length_slider.grid(row=0, column=1, padx=10, pady=10)
         
-        # Длительность
-        tk.Label(add_frame, text="Длительность (мин):", bg='#f0f0f0',
-                font=("Arial", 10)).grid(row=0, column=4, padx=5, pady=5, sticky='e')
-        self.duration_entry = tk.Entry(add_frame, width=10, font=("Arial", 10))
-        self.duration_entry.grid(row=0, column=5, padx=5, pady=5)
+        self.length_label = tk.Label(settings_frame, text="12", 
+                                     bg='#ecf0f1', font=("Arial", 12, "bold"),
+                                     width=5)
+        self.length_label.grid(row=0, column=2, padx=10, pady=10)
+        self.length_slider.configure(command=self.update_length_label)
         
-        # Кнопка добавления
-        add_btn = tk.Button(add_frame, text="➕ Добавить тренировку", 
-                           command=self.add_training,
-                           bg='#4CAF50', fg='white', font=("Arial", 10, "bold"),
-                           padx=15, pady=5)
-        add_btn.grid(row=1, column=0, columnspan=6, pady=10)
+        # Чекбоксы для выбора символов
+        tk.Label(settings_frame, text="Включить:", 
+                bg='#ecf0f1', font=("Arial", 12, "bold")).grid(row=1, column=0, padx=10, pady=10, sticky='w')
         
-        # Рамка для фильтрации
-        filter_frame = tk.LabelFrame(self.root, text="Фильтрация", 
-                                     font=("Arial", 12, "bold"),
-                                     bg='#f0f0f0', padx=20, pady=10)
-        filter_frame.pack(pady=10, padx=20, fill='x')
+        self.use_uppercase = tk.BooleanVar(value=True)
+        self.use_lowercase = tk.BooleanVar(value=True)
+        self.use_digits = tk.BooleanVar(value=True)
+        self.use_symbols = tk.BooleanVar(value=True)
         
-        # Фильтр по дате
-        tk.Label(filter_frame, text="Фильтр по дате (с):", bg='#f0f0f0',
-                font=("Arial", 10)).pack(side='left', padx=5)
-        self.filter_date = tk.Entry(filter_frame, width=12)
-        self.filter_date.pack(side='left', padx=5)
-        self.filter_date.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        tk.Checkbutton(settings_frame, text="Заглавные буквы (A-Z)", 
+                      variable=self.use_uppercase, bg='#ecf0f1',
+                      font=("Arial", 10)).grid(row=1, column=1, padx=10, pady=5, sticky='w')
         
-        tk.Label(filter_frame, text="по:", bg='#f0f0f0',
-                font=("Arial", 10)).pack(side='left', padx=5)
-        self.filter_date_to = tk.Entry(filter_frame, width=12)
-        self.filter_date_to.pack(side='left', padx=5)
+        tk.Checkbutton(settings_frame, text="Строчные буквы (a-z)", 
+                      variable=self.use_lowercase, bg='#ecf0f1',
+                      font=("Arial", 10)).grid(row=2, column=1, padx=10, pady=5, sticky='w')
         
-        # Фильтр по типу
-        tk.Label(filter_frame, text="Тип:", bg='#f0f0f0',
-                font=("Arial", 10)).pack(side='left', padx=5)
-        self.filter_type = ttk.Combobox(filter_frame, values=["Все", "Бег", "Плавание", 
-                                                               "Велосипед", "Силовая", "Йога", "Растяжка"], 
-                                        width=12)
-        self.filter_type.pack(side='left', padx=5)
-        self.filter_type.set("Все")
+        tk.Checkbutton(settings_frame, text="Цифры (0-9)", 
+                      variable=self.use_digits, bg='#ecf0f1',
+                      font=("Arial", 10)).grid(row=3, column=1, padx=10, pady=5, sticky='w')
         
-        # Кнопка фильтрации
-        filter_btn = tk.Button(filter_frame, text="🔍 Применить фильтр", 
-                              command=self.filter_trainings,
-                              bg='#2196F3', fg='white')
-        filter_btn.pack(side='left', padx=10)
+        tk.Checkbutton(settings_frame, text="Спецсимволы (!@#$%^&*)", 
+                      variable=self.use_symbols, bg='#ecf0f1',
+                      font=("Arial", 10)).grid(row=4, column=1, padx=10, pady=5, sticky='w')
         
-        # Кнопка сброса фильтра
-        reset_btn = tk.Button(filter_frame, text="🔄 Сбросить", 
-                              command=self.reset_filter,
-                              bg='#FF9800', fg='white')
-        reset_btn.pack(side='left', padx=5)
+        # Кнопка генерации
+        generate_btn = tk.Button(self.root, text="🎲 Сгенерировать пароль", 
+                                command=self.generate_password,
+                                font=("Arial", 14, "bold"),
+                                bg='#27ae60', fg='white',
+                                padx=30, pady=12)
+        generate_btn.pack(pady=15)
         
-        # Таблица для отображения тренировок
-        table_frame = tk.LabelFrame(self.root, text="Список тренировок", 
-                                    font=("Arial", 12, "bold"),
-                                    bg='#f0f0f0', padx=10, pady=10)
-        table_frame.pack(pady=10, padx=20, fill='both', expand=True)
+        # Отображение сгенерированного пароля
+        self.password_display = tk.Text(self.root, height=3, width=50,
+                                        font=("Courier", 14),
+                                        relief='sunken', bd=3,
+                                        bg='white', fg='#2c3e50')
+        self.password_display.pack(pady=10, padx=20, fill='x')
         
-        # Создание таблицы (Treeview)
-        columns = ("Дата", "Тип тренировки", "Длительность (мин)")
-        self.tree = ttk.Treeview(table_frame, columns=columns, show='headings', height=15)
+        # Кнопка копирования
+        copy_btn = tk.Button(self.root, text="📋 Скопировать пароль", 
+                            command=self.copy_password,
+                            font=("Arial", 11),
+                            bg='#3498db', fg='white',
+                            padx=20, pady=5)
+        copy_btn.pack(pady=5)
         
-        # Настройка колонок
-        self.tree.heading("Дата", text="Дата")
-        self.tree.heading("Тип тренировки", text="Тип тренировки")
-        self.tree.heading("Длительность (мин)", text="Длительность (мин)")
+        # История паролей
+        history_frame = tk.LabelFrame(self.root, text="📜 История паролей", 
+                                      font=("Arial", 14, "bold"),
+                                      bg='#ecf0f1', fg='#2c3e50',
+                                      padx=10, pady=10)
+        history_frame.pack(pady=10, padx=20, fill='both', expand=True)
         
-        self.tree.column("Дата", width=120)
-        self.tree.column("Тип тренировки", width=150)
-        self.tree.column("Длительность (мин)", width=120)
+        # Таблица для истории
+        columns = ("Дата", "Пароль", "Длина", "Сложность")
+        self.tree = ttk.Treeview(history_frame, columns=columns, show='headings', height=8)
+        
+        self.tree.heading("Дата", text="Дата создания")
+        self.tree.heading("Пароль", text="Пароль")
+        self.tree.heading("Длина", text="Длина")
+        self.tree.heading("Сложность", text="Сложность")
+        
+        self.tree.column("Дата", width=150)
+        self.tree.column("Пароль", width=200)
+        self.tree.column("Длина", width=80)
+        self.tree.column("Сложность", width=100)
         
         # Скроллбар
-        scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=self.tree.yview)
+        scrollbar = ttk.Scrollbar(history_frame, orient='vertical', command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
         
         self.tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         
-        # Кнопка удаления
-        delete_btn = tk.Button(self.root, text="🗑 Удалить выбранную тренировку", 
-                              command=self.delete_training,
-                              bg='#f44336', fg='white', font=("Arial", 10, "bold"),
-                              padx=20, pady=5)
-        delete_btn.pack(pady=5)
+        # Кнопка очистки истории
+        clear_btn = tk.Button(self.root, text="🗑 Очистить историю", 
+                             command=self.clear_history,
+                             bg='#e74c3c', fg='white', 
+                             font=("Arial", 11, "bold"),
+                             padx=20, pady=5)
+        clear_btn.pack(pady=10)
         
         # Обновление таблицы
-        self.update_table()
+        self.update_history_table()
     
-    def add_training(self):
-        """Добавление тренировки с валидацией"""
-        # Получаем данные
-        date = self.date_entry.get().strip()
-        training_type = self.type_combo.get()
-        duration = self.duration_entry.get().strip()
-        
-        # Валидация даты
-        try:
-            datetime.strptime(date, "%Y-%m-%d")
-        except ValueError:
-            messagebox.showerror("Ошибка", "Неверный формат даты! Используйте ГГГГ-ММ-ДД")
+    def update_length_label(self, value):
+        """Обновление отображения длины пароля"""
+        self.length_label.config(text=str(int(float(value))))
+    
+    def generate_password(self):
+        """Генерация пароля согласно настройкам"""
+        # Проверка, что выбран хотя бы один тип символов
+        if not (self.use_uppercase.get() or self.use_lowercase.get() or 
+                self.use_digits.get() or self.use_symbols.get()):
+            messagebox.showerror("Ошибка", "Выберите хотя бы один тип символов!")
             return
         
-        # Валидация длительности
-        if not duration:
-            messagebox.showerror("Ошибка", "Введите длительность тренировки!")
+        length = self.length_var.get()
+        
+        # Валидация длины
+        if length < 4:
+            messagebox.showerror("Ошибка", "Длина пароля должна быть не менее 4 символов!")
+            return
+        if length > 32:
+            messagebox.showerror("Ошибка", "Длина пароля должна быть не более 32 символов!")
             return
         
-        try:
-            duration_int = int(duration)
-            if duration_int <= 0:
-                messagebox.showerror("Ошибка", "Длительность должна быть положительным числом!")
-                return
-        except ValueError:
-            messagebox.showerror("Ошибка", "Длительность должна быть целым числом!")
-            return
+        # Формируем набор символов
+        characters = ""
+        if self.use_uppercase.get():
+            characters += string.ascii_uppercase
+        if self.use_lowercase.get():
+            characters += string.ascii_lowercase
+        if self.use_digits.get():
+            characters += string.digits
+        if self.use_symbols.get():
+            characters += "!@#$%^&*()_+-=[]{}|;:,.<>?"
         
-        # Добавляем тренировку
-        training = {
-            "date": date,
-            "type": training_type,
-            "duration": duration_int
+        # Генерация пароля
+        password_chars = []
+        for _ in range(length):
+            password_chars.append(random.choice(characters))
+        
+        # Перемешиваем для случайности
+        random.shuffle(password_chars)
+        password = ''.join(password_chars)
+        
+        # Отображаем пароль
+        self.password_display.delete(1.0, tk.END)
+        self.password_display.insert(1.0, password)
+        
+        # Сохраняем в историю
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Определяем сложность
+        complexity = self.calculate_complexity(password)
+        
+        history_entry = {
+            "time": timestamp,
+            "password": password,
+            "length": length,
+            "complexity": complexity
         }
         
-        self.trainings.append(training)
-        self.save_data()
-        self.update_table()
-        self.duration_entry.delete(0, tk.END)
+        self.history.append(history_entry)
+        self.save_history()
+        self.update_history_table()
         
-        messagebox.showinfo("Успех", f"Тренировка добавлена!\n{date} - {training_type} - {duration} мин")
+        messagebox.showinfo("Успех", f"Пароль сгенерирован!\nДлина: {length} символов\nСложность: {complexity}")
     
-    def delete_training(self):
-        """Удаление выбранной тренировки"""
-        selected = self.tree.selection()
-        if not selected:
-            messagebox.showwarning("Внимание", "Выберите тренировку для удаления!")
-            return
+    def calculate_complexity(self, password):
+        """Расчёт сложности пароля"""
+        score = 0
+        if any(c.isupper() for c in password):
+            score += 1
+        if any(c.islower() for c in password):
+            score += 1
+        if any(c.isdigit() for c in password):
+            score += 1
+        if any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password):
+            score += 1
+        if len(password) >= 12:
+            score += 1
         
-        # Получаем индекс выбранной строки
-        item = selected[0]
-        index = int(self.tree.item(item)['text'])
-        
-        # Удаляем
-        del self.trainings[index]
-        self.save_data()
-        self.update_table()
-        messagebox.showinfo("Успех", "Тренировка удалена!")
+        if score <= 2:
+            return "Слабый"
+        elif score <= 4:
+            return "Средний"
+        else:
+            return "Сильный"
     
-    def filter_trainings(self):
-        """Фильтрация тренировок по дате и типу"""
-        filter_date_from = self.filter_date.get().strip()
-        filter_date_to = self.filter_date_to.get().strip()
-        filter_type = self.filter_type.get()
-        
-        # Очищаем таблицу
+    def copy_password(self):
+        """Копирование пароля в буфер обмена"""
+        password = self.password_display.get(1.0, tk.END).strip()
+        if password:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(password)
+            messagebox.showinfo("Успех", "Пароль скопирован в буфер обмена!")
+        else:
+            messagebox.showwarning("Внимание", "Сначала сгенерируйте пароль!")
+    
+    def update_history_table(self):
+        """Обновление таблицы истории"""
         for item in self.tree.get_children():
             self.tree.delete(item)
         
-        # Проходим по всем тренировкам
-        for i, training in enumerate(self.trainings):
-            # Фильтр по дате (с)
-            if filter_date_from:
-                try:
-                    date_obj = datetime.strptime(training['date'], "%Y-%m-%d")
-                    date_from = datetime.strptime(filter_date_from, "%Y-%m-%d")
-                    if date_obj < date_from:
-                        continue
-                except:
-                    pass
-            
-            # Фильтр по дате (по)
-            if filter_date_to:
-                try:
-                    date_obj = datetime.strptime(training['date'], "%Y-%m-%d")
-                    date_to = datetime.strptime(filter_date_to, "%Y-%m-%d")
-                    if date_obj > date_to:
-                        continue
-                except:
-                    pass
-            
-            # Фильтр по типу
-            if filter_type != "Все" and training['type'] != filter_type:
-                continue
-            
-            # Добавляем в таблицу
-            self.tree.insert('', 'end', text=str(i), 
-                           values=(training['date'], training['type'], f"{training['duration']} мин"))
+        for entry in self.history:
+            # Маскируем пароль для отображения
+            masked_password = entry['password'][:3] + '***' + entry['password'][-3:] if len(entry['password']) > 6 else '***'
+            self.tree.insert('', 'end', 
+                           values=(entry['time'], masked_password, 
+                                  entry['length'], entry['complexity']))
     
-    def reset_filter(self):
-        """Сброс фильтрации"""
-        self.filter_date.delete(0, tk.END)
-        self.filter_date.insert(0, datetime.now().strftime("%Y-%m-%d"))
-        self.filter_date_to.delete(0, tk.END)
-        self.filter_type.set("Все")
-        self.update_table()
+    def clear_history(self):
+        """Очистка истории"""
+        if messagebox.askyesno("Подтверждение", "Вы уверены, что хотите очистить историю паролей?"):
+            self.history = []
+            self.save_history()
+            self.update_history_table()
+            messagebox.showinfo("Успех", "История очищена!")
     
-    def update_table(self):
-        """Обновление таблицы (без фильтрации)"""
-        for item in self.tree.get_children():
-            self.tree.delete(item)
-        
-        for i, training in enumerate(self.trainings):
-            self.tree.insert('', 'end', text=str(i), 
-                           values=(training['date'], training['type'], f"{training['duration']} мин"))
-    
-    def save_data(self):
-        """Сохранение данных в JSON"""
+    def save_history(self):
+        """Сохранение истории в JSON"""
         try:
             with open(self.json_file, 'w', encoding='utf-8') as f:
-                json.dump(self.trainings, f, ensure_ascii=False, indent=2)
+                json.dump(self.history, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Ошибка сохранения: {e}")
     
-    def load_data(self):
-        """Загрузка данных из JSON"""
+    def load_history(self):
+        """Загрузка истории из JSON"""
         if os.path.exists(self.json_file):
             try:
                 with open(self.json_file, 'r', encoding='utf-8') as f:
-                    self.trainings = json.load(f)
+                    self.history = json.load(f)
             except Exception as e:
                 print(f"Ошибка загрузки: {e}")
-                self.trainings = []
+                self.history = []
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = TrainingPlanner(root)
+    app = PasswordGenerator(root)
     root.mainloop()
