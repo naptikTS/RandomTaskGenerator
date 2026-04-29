@@ -1,197 +1,274 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import random
 import json
 import os
 from datetime import datetime
 
-class TaskGenerator:
+class TrainingPlanner:
     def __init__(self, root):
         self.root = root
-        self.root.title("Генератор случайных задач")
-        self.root.geometry("650x750")
+        self.root.title("Планировщик тренировок")
+        self.root.geometry("900x600")
         self.root.configure(bg='#f0f0f0')
         
-        # Предопределённые задачи
-        self.default_tasks = [
-            {"name": "Прочитать статью по Python", "type": "учёба"},
-            {"name": "Сделать зарядку 15 минут", "type": "спорт"},
-            {"name": "Закончить отчёт по проекту", "type": "работа"},
-            {"name": "Выучить 10 новых слов", "type": "учёба"},
-            {"name": "Пробежка 3 км", "type": "спорт"},
-            {"name": "Позвонить клиенту", "type": "работа"},
-            {"name": "Посмотреть вебинар", "type": "учёба"},
-            {"name": "Отжимания 3 подхода", "type": "спорт"},
-            {"name": "Составить план на неделю", "type": "работа"}
-        ]
+        # Хранилище тренировок
+        self.trainings = []
+        self.json_file = "trainings.json"
         
-        self.tasks = self.default_tasks.copy()
-        self.history = []
-        self.json_file = "task_history.json"
-        
-        self.load_history()
+        self.load_data()
         self.setup_ui()
-        
+    
     def setup_ui(self):
         # Заголовок
-        title = tk.Label(self.root, text="🎲 Генератор случайных задач", 
-                        font=("Arial", 18, "bold"), bg='#f0f0f0', fg='#333')
-        title.pack(pady=15)
+        title = tk.Label(self.root, text="🏋️ Планировщик тренировок", 
+                        font=("Arial", 18, "bold"), bg='#f0f0f0')
+        title.pack(pady=10)
         
-        # Кнопка генерации
-        self.generate_btn = tk.Button(self.root, text="Сгенерировать задачу", 
-                                     command=self.generate_task,
-                                     font=("Arial", 14, "bold"), 
-                                     bg='#4CAF50', fg='white',
-                                     padx=30, pady=12,
-                                     relief='raised', bd=3)
-        self.generate_btn.pack(pady=15)
-        
-        # Отображение задачи
-        self.task_display = tk.Label(self.root, text="⚡ Нажмите кнопку ⚡",
-                                     font=("Arial", 14), 
-                                     bg='#ffffff', fg='#2196F3',
-                                     relief='sunken', padx=20, pady=20,
-                                     wraplength=500)
-        self.task_display.pack(pady=10, padx=20, fill='x')
-        
-        # Фильтрация
-        filter_frame = tk.LabelFrame(self.root, text="Фильтр по типу", 
-                                     font=("Arial", 11, "bold"),
-                                     bg='#f0f0f0', padx=10, pady=10)
-        filter_frame.pack(pady=10, padx=20, fill='x')
-        
-        self.filter_var = tk.StringVar(value="все")
-        filters = [("📚 Все", "все"), ("📖 Учёба", "учёба"), 
-                   ("🏃 Спорт", "спорт"), ("💼 Работа", "работа")]
-        
-        for text, value in filters:
-            rb = tk.Radiobutton(filter_frame, text=text, variable=self.filter_var,
-                               value=value, command=self.filter_history,
-                               bg='#f0f0f0', font=("Arial", 10))
-            rb.pack(side='left', padx=10)
-        
-        # Добавление задачи
-        add_frame = tk.LabelFrame(self.root, text="Добавить новую задачу",
-                                  font=("Arial", 11, "bold"),
-                                  bg='#f0f0f0', padx=10, pady=10)
+        # Рамка для добавления тренировки
+        add_frame = tk.LabelFrame(self.root, text="Добавить тренировку", 
+                                  font=("Arial", 12, "bold"), 
+                                  bg='#f0f0f0', padx=20, pady=15)
         add_frame.pack(pady=10, padx=20, fill='x')
         
-        tk.Label(add_frame, text="Название:", bg='#f0f0f0', 
-                font=("Arial", 10)).grid(row=0, column=0, padx=5, pady=5)
-        self.task_entry = tk.Entry(add_frame, width=35, font=("Arial", 10))
-        self.task_entry.grid(row=0, column=1, padx=5, pady=5)
+        # Дата
+        tk.Label(add_frame, text="Дата (ГГГГ-ММ-ДД):", bg='#f0f0f0', 
+                font=("Arial", 10)).grid(row=0, column=0, padx=5, pady=5, sticky='e')
+        self.date_entry = tk.Entry(add_frame, width=20, font=("Arial", 10))
+        self.date_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
         
-        tk.Label(add_frame, text="Тип:", bg='#f0f0f0',
-                font=("Arial", 10)).grid(row=1, column=0, padx=5, pady=5)
-        self.type_combo = ttk.Combobox(add_frame, values=["учёба", "спорт", "работа"],
-                                       width=32)
-        self.type_combo.grid(row=1, column=1, padx=5, pady=5)
-        self.type_combo.set("учёба")
+        # Тип тренировки
+        tk.Label(add_frame, text="Тип тренировки:", bg='#f0f0f0',
+                font=("Arial", 10)).grid(row=0, column=2, padx=5, pady=5, sticky='e')
+        self.type_combo = ttk.Combobox(add_frame, values=["Бег", "Плавание", "Велосипед", 
+                                                          "Силовая", "Йога", "Растяжка"], 
+                                       width=15)
+        self.type_combo.grid(row=0, column=3, padx=5, pady=5)
+        self.type_combo.set("Бег")
         
-        add_btn = tk.Button(add_frame, text="➕ Добавить", command=self.add_task,
-                           bg='#2196F3', fg='white', font=("Arial", 10, "bold"),
-                           padx=20)
-        add_btn.grid(row=2, column=0, columnspan=2, pady=10)
+        # Длительность
+        tk.Label(add_frame, text="Длительность (мин):", bg='#f0f0f0',
+                font=("Arial", 10)).grid(row=0, column=4, padx=5, pady=5, sticky='e')
+        self.duration_entry = tk.Entry(add_frame, width=10, font=("Arial", 10))
+        self.duration_entry.grid(row=0, column=5, padx=5, pady=5)
         
-        # История
-        history_frame = tk.LabelFrame(self.root, text="📜 История задач",
-                                      font=("Arial", 11, "bold"),
-                                      bg='#f0f0f0', padx=10, pady=10)
-        history_frame.pack(pady=10, padx=20, fill='both', expand=True)
+        # Кнопка добавления
+        add_btn = tk.Button(add_frame, text="➕ Добавить тренировку", 
+                           command=self.add_training,
+                           bg='#4CAF50', fg='white', font=("Arial", 10, "bold"),
+                           padx=15, pady=5)
+        add_btn.grid(row=1, column=0, columnspan=6, pady=10)
         
-        scrollbar = tk.Scrollbar(history_frame)
+        # Рамка для фильтрации
+        filter_frame = tk.LabelFrame(self.root, text="Фильтрация", 
+                                     font=("Arial", 12, "bold"),
+                                     bg='#f0f0f0', padx=20, pady=10)
+        filter_frame.pack(pady=10, padx=20, fill='x')
+        
+        # Фильтр по дате
+        tk.Label(filter_frame, text="Фильтр по дате (с):", bg='#f0f0f0',
+                font=("Arial", 10)).pack(side='left', padx=5)
+        self.filter_date = tk.Entry(filter_frame, width=12)
+        self.filter_date.pack(side='left', padx=5)
+        self.filter_date.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        
+        tk.Label(filter_frame, text="по:", bg='#f0f0f0',
+                font=("Arial", 10)).pack(side='left', padx=5)
+        self.filter_date_to = tk.Entry(filter_frame, width=12)
+        self.filter_date_to.pack(side='left', padx=5)
+        
+        # Фильтр по типу
+        tk.Label(filter_frame, text="Тип:", bg='#f0f0f0',
+                font=("Arial", 10)).pack(side='left', padx=5)
+        self.filter_type = ttk.Combobox(filter_frame, values=["Все", "Бег", "Плавание", 
+                                                               "Велосипед", "Силовая", "Йога", "Растяжка"], 
+                                        width=12)
+        self.filter_type.pack(side='left', padx=5)
+        self.filter_type.set("Все")
+        
+        # Кнопка фильтрации
+        filter_btn = tk.Button(filter_frame, text="🔍 Применить фильтр", 
+                              command=self.filter_trainings,
+                              bg='#2196F3', fg='white')
+        filter_btn.pack(side='left', padx=10)
+        
+        # Кнопка сброса фильтра
+        reset_btn = tk.Button(filter_frame, text="🔄 Сбросить", 
+                              command=self.reset_filter,
+                              bg='#FF9800', fg='white')
+        reset_btn.pack(side='left', padx=5)
+        
+        # Таблица для отображения тренировок
+        table_frame = tk.LabelFrame(self.root, text="Список тренировок", 
+                                    font=("Arial", 12, "bold"),
+                                    bg='#f0f0f0', padx=10, pady=10)
+        table_frame.pack(pady=10, padx=20, fill='both', expand=True)
+        
+        # Создание таблицы (Treeview)
+        columns = ("Дата", "Тип тренировки", "Длительность (мин)")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show='headings', height=15)
+        
+        # Настройка колонок
+        self.tree.heading("Дата", text="Дата")
+        self.tree.heading("Тип тренировки", text="Тип тренировки")
+        self.tree.heading("Длительность (мин)", text="Длительность (мин)")
+        
+        self.tree.column("Дата", width=120)
+        self.tree.column("Тип тренировки", width=150)
+        self.tree.column("Длительность (мин)", width=120)
+        
+        # Скроллбар
+        scrollbar = ttk.Scrollbar(table_frame, orient='vertical', command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         
-        self.history_listbox = tk.Listbox(history_frame, 
-                                          yscrollcommand=scrollbar.set,
-                                          font=("Arial", 9),
-                                          height=10,
-                                          bg='#ffffff')
-        self.history_listbox.pack(fill='both', expand=True)
-        scrollbar.config(command=self.history_listbox.yview)
+        # Кнопка удаления
+        delete_btn = tk.Button(self.root, text="🗑 Удалить выбранную тренировку", 
+                              command=self.delete_training,
+                              bg='#f44336', fg='white', font=("Arial", 10, "bold"),
+                              padx=20, pady=5)
+        delete_btn.pack(pady=5)
         
-        # Кнопка очистки
-        clear_btn = tk.Button(self.root, text="🗑 Очистить историю", 
-                             command=self.clear_history,
-                             bg='#f44336', fg='white', 
-                             font=("Arial", 10, "bold"),
-                             padx=20, pady=5)
-        clear_btn.pack(pady=10)
-        
-        self.update_history_display()
+        # Обновление таблицы
+        self.update_table()
     
-    def generate_task(self):
-        if not self.tasks:
-            messagebox.showwarning("Ошибка", "Нет доступных задач!")
+    def add_training(self):
+        """Добавление тренировки с валидацией"""
+        # Получаем данные
+        date = self.date_entry.get().strip()
+        training_type = self.type_combo.get()
+        duration = self.duration_entry.get().strip()
+        
+        # Валидация даты
+        try:
+            datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            messagebox.showerror("Ошибка", "Неверный формат даты! Используйте ГГГГ-ММ-ДД")
             return
         
-        task = random.choice(self.tasks)
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Валидация длительности
+        if not duration:
+            messagebox.showerror("Ошибка", "Введите длительность тренировки!")
+            return
         
-        history_entry = {
-            "time": timestamp,
-            "task": task["name"],
-            "type": task["type"]
+        try:
+            duration_int = int(duration)
+            if duration_int <= 0:
+                messagebox.showerror("Ошибка", "Длительность должна быть положительным числом!")
+                return
+        except ValueError:
+            messagebox.showerror("Ошибка", "Длительность должна быть целым числом!")
+            return
+        
+        # Добавляем тренировку
+        training = {
+            "date": date,
+            "type": training_type,
+            "duration": duration_int
         }
         
-        self.history.append(history_entry)
-        self.task_display.config(text=f"🎉 {task['name']} 🎉")
-        self.save_history()
-        self.update_history_display()
-    
-    def add_task(self):
-        task_name = self.task_entry.get().strip()
-        task_type = self.type_combo.get()
+        self.trainings.append(training)
+        self.save_data()
+        self.update_table()
+        self.duration_entry.delete(0, tk.END)
         
-        if not task_name:
-            messagebox.showerror("Ошибка", "Название задачи не может быть пустым!")
+        messagebox.showinfo("Успех", f"Тренировка добавлена!\n{date} - {training_type} - {duration} мин")
+    
+    def delete_training(self):
+        """Удаление выбранной тренировки"""
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Внимание", "Выберите тренировку для удаления!")
             return
         
-        for task in self.tasks:
-            if task["name"].lower() == task_name.lower():
-                messagebox.showwarning("Внимание", "Такая задача уже есть!")
-                return
+        # Получаем индекс выбранной строки
+        item = selected[0]
+        index = int(self.tree.item(item)['text'])
         
-        self.tasks.append({"name": task_name, "type": task_type})
-        self.task_entry.delete(0, tk.END)
-        messagebox.showinfo("Успех", f"Задача '{task_name}' добавлена!")
+        # Удаляем
+        del self.trainings[index]
+        self.save_data()
+        self.update_table()
+        messagebox.showinfo("Успех", "Тренировка удалена!")
     
-    def filter_history(self):
-        self.update_history_display()
-    
-    def update_history_display(self):
-        self.history_listbox.delete(0, tk.END)
-        filter_type = self.filter_var.get()
+    def filter_trainings(self):
+        """Фильтрация тренировок по дате и типу"""
+        filter_date_from = self.filter_date.get().strip()
+        filter_date_to = self.filter_date_to.get().strip()
+        filter_type = self.filter_type.get()
         
-        for entry in self.history:
-            if filter_type == "все" or entry["type"] == filter_type:
-                display_text = f"[{entry['time']}] {entry['task']} ({entry['type']})"
-                self.history_listbox.insert(tk.END, display_text)
+        # Очищаем таблицу
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # Проходим по всем тренировкам
+        for i, training in enumerate(self.trainings):
+            # Фильтр по дате (с)
+            if filter_date_from:
+                try:
+                    date_obj = datetime.strptime(training['date'], "%Y-%m-%d")
+                    date_from = datetime.strptime(filter_date_from, "%Y-%m-%d")
+                    if date_obj < date_from:
+                        continue
+                except:
+                    pass
+            
+            # Фильтр по дате (по)
+            if filter_date_to:
+                try:
+                    date_obj = datetime.strptime(training['date'], "%Y-%m-%d")
+                    date_to = datetime.strptime(filter_date_to, "%Y-%m-%d")
+                    if date_obj > date_to:
+                        continue
+                except:
+                    pass
+            
+            # Фильтр по типу
+            if filter_type != "Все" and training['type'] != filter_type:
+                continue
+            
+            # Добавляем в таблицу
+            self.tree.insert('', 'end', text=str(i), 
+                           values=(training['date'], training['type'], f"{training['duration']} мин"))
     
-    def save_history(self):
+    def reset_filter(self):
+        """Сброс фильтрации"""
+        self.filter_date.delete(0, tk.END)
+        self.filter_date.insert(0, datetime.now().strftime("%Y-%m-%d"))
+        self.filter_date_to.delete(0, tk.END)
+        self.filter_type.set("Все")
+        self.update_table()
+    
+    def update_table(self):
+        """Обновление таблицы (без фильтрации)"""
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        for i, training in enumerate(self.trainings):
+            self.tree.insert('', 'end', text=str(i), 
+                           values=(training['date'], training['type'], f"{training['duration']} мин"))
+    
+    def save_data(self):
+        """Сохранение данных в JSON"""
         try:
             with open(self.json_file, 'w', encoding='utf-8') as f:
-                json.dump(self.history, f, ensure_ascii=False, indent=2)
-        except:
-            pass
+                json.dump(self.trainings, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка сохранения: {e}")
     
-    def load_history(self):
+    def load_data(self):
+        """Загрузка данных из JSON"""
         if os.path.exists(self.json_file):
             try:
                 with open(self.json_file, 'r', encoding='utf-8') as f:
-                    self.history = json.load(f)
-            except:
-                self.history = []
-    
-    def clear_history(self):
-        if messagebox.askyesno("Подтверждение", "Очистить всю историю?"):
-            self.history = []
-            self.save_history()
-            self.update_history_display()
-            self.task_display.config(text="История очищена")
+                    self.trainings = json.load(f)
+            except Exception as e:
+                print(f"Ошибка загрузки: {e}")
+                self.trainings = []
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = TaskGenerator(root)
+    app = TrainingPlanner(root)
     root.mainloop()
